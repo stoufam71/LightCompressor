@@ -234,9 +234,12 @@ object VideoCompressor : CoroutineScope by MainScope() {
                         if (sharedStorageConfiguration.subFolderName != null) "$saveLocation/${sharedStorageConfiguration.subFolderName}"
                         else saveLocation
                     if (shouldSave == true) {
-                        saveVideoInExternal(context, videoFileName, fullPath, videoFile)
+                        val saveFileUri =
+                            saveVideoInExternal(context, videoFileName, fullPath, videoFile)
                         File(context.filesDir, videoFileName).delete()
-                        return File("/storage/emulated/0/${fullPath}", videoFileName)
+                        //return File("/storage/emulated/0/${fullPath}", videoFileName)
+                        return saveFileUri?.let { uri -> getMediaPath(context, uri) }
+                            ?.let { path -> File(path) }
                     }
                     return File(context.filesDir, videoFileName)
                 } else {
@@ -302,7 +305,7 @@ object VideoCompressor : CoroutineScope by MainScope() {
         videoFileName: String,
         saveLocation: String,
         videoFile: File
-    ) {
+    ): Uri? {
         val values = ContentValues().apply {
 
             put(
@@ -314,11 +317,16 @@ object VideoCompressor : CoroutineScope by MainScope() {
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }
 
-        var collection =
+        /*var collection =
             MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
 
         if (saveLocation == Environment.DIRECTORY_DOWNLOADS) {
             collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        }*/
+
+        val collection = when (saveLocation) {
+            Environment.DIRECTORY_DOWNLOADS -> MediaStore.Downloads.EXTERNAL_CONTENT_URI
+            else -> MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         }
 
         val fileUri = context.contentResolver.insert(collection, values)
@@ -344,6 +352,7 @@ object VideoCompressor : CoroutineScope by MainScope() {
             values.put(MediaStore.Video.Media.IS_PENDING, 0)
             context.contentResolver.update(fileUri, values, null, null)
         }
+        return fileUri
     }
 
     private fun getMediaPath(context: Context, uri: Uri): String {
